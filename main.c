@@ -18,7 +18,7 @@ void sendTrigger() {
 	digitalWrite(4, HIGH);
 	startTime = getUS();
 	long waitTime = getUS();
-	while (getUS() - waitTime < 10) {};
+	while (getUS() - waitTime < 15) {};
 	digitalWrite(4, LOW);
 	return;
 }
@@ -32,9 +32,12 @@ int main (void) {
 	
 	printf(" WORLD\n");
 	
+	long echoStartTime;
+	
 	enum State {
 		init,
 		waitingForEcho,
+		measurePulse,
 		waitToRestart,
 	} state; 
 	
@@ -42,6 +45,7 @@ int main (void) {
 		// START OF INIFITE FOR LOOP
 		switch(state) {
 			case init:
+				// This is only executed once
 				printf("INIT\n");
 				digitalWrite(4, LOW);
 				delay (60);
@@ -50,21 +54,34 @@ int main (void) {
 			break;
 			
 			case waitingForEcho:
+				// If the ECHO is HIGH
 				if (digitalRead(5) == 1) {
-					long echoTime = getUS();
-					float distanceCM = (float)(echoTime - startTime) / 58.0;
-					printf("Distance: %f\n", distanceCM);
-					state = waitToRestart;
+					// Pulse seen! Begin measuring pulse.
+					echoStartTime = getUS();
+					state = measurePulse;
 				}
 				
+				// If we never saw a pulse :(
 				if (getUS() - startTime > 1000000) {
 					printf("Didn't see an echo. retrying.\n");
 					sendTrigger();
 				} 
 			break;
 			
+			case measurePulse:
+				// If the ECHO is LOW
+				if (digitalRead(5) == 0) {
+					// Pulse finished. Calc distance
+					float distanceCM = ((float)getUS() - echoStartTime) / 58;
+					printf("Distance: %f cm\n", distanceCM);
+					state = waitToRestart;
+				}
+			break;
+			
 			case waitToRestart:
-				if (startTime - getUS() > 60000) {
+				// If we have waited long enough
+				if (getUS() - startTime > 120000) {
+					// Time to restart
 					sendTrigger();
 					state = waitingForEcho;
 				}
